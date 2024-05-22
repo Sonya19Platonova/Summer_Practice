@@ -1,0 +1,287 @@
+#main.py
+import Window
+import GasStation
+import GasColumn
+import Benzine
+
+
+GasStation = GasStation.GasStation()
+gas_column92 = GasColumn.GasColumn(Benzine.AI92(), 10)
+gas_column95 = GasColumn.GasColumn(Benzine.AI95(), 10)
+gas_column95Gdrive = GasColumn.GasColumn(Benzine.AI95Gdrive(), 10)
+GasStation.add_gas_column(gas_column92)
+GasStation.add_gas_column(gas_column95)
+GasStation.add_gas_column(gas_column95Gdrive)
+
+window = Window.Window(GasStation)
+window.mainloop()
+
+
+
+#client.py
+# Класс "Клиент"
+
+class Client:
+    def __init__(self, fuel_type, need_liters):
+        self._benzine_type = fuel_type               # Вид топлива
+        self._need_liters = need_liters              # Необходимые литры
+
+    def get_benzine_type(self):
+        return self._benzine_type
+
+    def get_need_liters(self):
+        return self._need_liters
+
+    def refueling(self, liters):
+        self._need_liters -= liters
+        if self._need_liters < 0:
+            self._need_liters = 0
+        return self._need_liters
+
+
+#Benzine.py
+# Класс "Бензин"
+
+class Benzine:
+    def __init__(self):
+        self._price = None          # Цена
+        self._name = None           # Название
+
+    def get_name(self):
+        return self._name
+
+    def get_price(self):
+        return self._price
+
+
+class AI92(Benzine):
+    def __init__(self):
+        super().__init__()
+
+        self._price = 48.60
+        self._name = "АИ92"
+
+
+class AI95(Benzine):
+    def __init__(self):
+        super().__init__()
+
+        self._price = 51.20
+        self._name = "АИ95"
+
+
+class AI95Gdrive(Benzine):
+    def __init__(self):
+        super().__init__()
+
+        self._price = 52.60
+        self._name = "95 G-drive"
+
+
+
+#GasColumn.py
+# Класс "Бензиновая колонка"
+
+class GasColumn:
+    def __init__(self, _benzine_type, _clients_count):
+        self._benzine_type = _benzine_type              # Вид топлива
+        self._clients = []                              # Список клиентов
+        self._clients_count = _clients_count            # Количество клиентов
+
+    def get_clients(self):
+        return self._clients
+
+    def get_benzine_type(self):
+        return self._benzine_type
+
+    def add_client(self, client):
+        if len(self._clients) < self._clients_count and client.get_benzine_type().get_name() == self._benzine_type.get_name():
+            self._clients.append(client)
+            return True
+        return False
+
+    def remove_first_client(self):
+        return self._clients.pop(0)
+
+    def len_clients(self):
+        return len(self._clients)
+
+    def step(self, minutes):
+        if self._clients:
+            price = self._clients[0].get_need_liters() * 0.5 * minutes
+            if not self._clients[0].refueling(0.5 * minutes):
+                self.remove_first_client()
+            return price
+        return 0
+
+
+
+#GasStation.py
+# Класс "Бензозаправочная станция"
+
+import random
+import Client
+import Benzine
+import GasColumn
+
+
+class GasStation:
+    def __init__(self):
+        self._gas_column = []               # Список бензиновых колонок
+        self._profit_history = []           # Список прибыли
+        self._fails_history = []            # Список потерь
+        self._goods_history = []            # Список товара
+        self._current_day_goods = 0         # Товары в текущий день
+        self._current_day_fails = 0         # Неудача в текущий день
+        self._current_day_profit = 0        # Прибыль в текущий день
+        self._total_minutes = 0             # Общее время
+
+    def get_current_day_profit(self):
+        return self._current_day_profit
+
+    def get_7_days_profit(self):
+        profit = 0
+        index = max(0, len(self._profit_history) - 7)
+        for i in self._profit_history[index:]:
+            profit += i
+        return profit
+
+    def get_current_day_goods(self):
+        return self._current_day_goods
+
+    def get_7_days_goods(self):
+        goods = 0
+        index = max(0, len(self._goods_history) - 7)
+        for i in self._goods_history[index:]:
+            goods += i
+        return goods
+
+    def get_current_day_fails(self):
+        return self._current_day_fails
+
+    def get_7_days_fails(self):
+        fails = 0
+        index = max(0, len(self._fails_history) - 7)
+        for i in self._fails_history[index:]:
+            fails += i
+        return fails
+
+    def add_gas_column(self, ref_mach):
+        self._gas_column.append(ref_mach)
+
+    def get_gas_column(self):
+        return self._gas_column
+
+    def step(self, minutes):
+        self._total_minutes += minutes
+        for gas_column in self._gas_column:
+            self._current_day_profit += gas_column.step(minutes)
+        if random.randint(0, 10 // minutes) == 0:
+            client = Client.Client(random.choice((Benzine.AI92, Benzine.AI95, Benzine.AI95Gdrive))(), random.randint(10,50))
+            for gas_column in self._gas_column:
+                if gas_column.get_benzine_type().get_name() == client.get_benzine_type().get_name():
+                    if gas_column.add_client(client):
+                        self._current_day_goods += 1
+                        break
+            else:
+                self._current_day_fails += 1
+        if self._total_minutes > 1440 // 4:
+            self._profit_history.append(self._current_day_profit)
+            self._fails_history.append(self._current_day_fails)
+            self._goods_history.append(self._current_day_goods)
+            self._current_day_profit = 0
+            self._current_day_fails = 0
+            self._current_day_goods = 0
+            self._total_minutes = 0
+
+
+
+
+#Window.py
+# Класс "Окно"
+
+import tkinter
+from tkinter import *
+import tkinter as tk
+from random import choices
+import random
+
+class Window(tkinter.Tk):
+    def __init__(self, _gas_station):
+        super().__init__()
+        self.geometry("1050x600+200+50")
+        self.title("Обслуживание на бензозаправочной станции")
+
+        self._gas_station = _gas_station
+
+        mainframe = tkinter.Frame(self)
+        canvas_frame = tkinter.Frame(mainframe)
+        self._widgets_frame = tkinter.Frame(mainframe)
+
+        self._canvas = tkinter.Canvas(canvas_frame, width=800, height=600, bg="grey")
+
+        self._canvas.pack()
+        mainframe.pack(expand=True, fill=tkinter.BOTH)
+        canvas_frame.grid(column=0, columnspan=7, row=0, sticky="NSWE")
+        self._widgets_frame.grid(column=8, columnspan=3, row=0, sticky="NSWE")
+
+        self._create_info()
+
+        self.step()
+
+    def _draw_clients(self, clients, rm_number):
+        list_colors = ["honeydew2", "firebrick4", "grey3", "grey26", "HotPink3", "LightCyan", "LightGoldenrodYellow", "LightSeaGreen", "MistyRose4", "yellow2"]
+        if clients:
+            self._canvas.create_rectangle(120 + (250 * rm_number), 150, 170 + (250 * rm_number), 250, fill=random.choice(list_colors))
+        if len(clients) > 1:
+            r = 25
+            self._canvas.create_oval(145 - r + (250 * rm_number), 450 - r, 150 + r + (250 * rm_number), 450 + r, fill="White")
+            self._canvas.create_text(147 + (250 * rm_number), 450, text=f"{len(clients) - 1}")
+
+    def _update_info(self):
+        self._profit_day_label.config(text=f"Прибыль (сегодня): {self._gas_station.get_current_day_profit()}")
+        self._profit_7_days_label.config(text=f"Прибыль (неделя): {self._gas_station.get_7_days_profit()}")
+        self._fails_day_label.config(text=f"Количество уехавших (сегодня): {self._gas_station.get_current_day_fails()}")
+        self._fails_7_days_label.config(text=f"Количество уехавших (неделя): {self._gas_station.get_7_days_fails()}")
+        self._goods_day_label.config(text=f"Количество обслуженных (сегодня): {self._gas_station.get_current_day_goods()}")
+        self._goods_7_days_label.config(text=f"Количество обслуженных (неделя): {self._gas_station.get_7_days_goods()}")
+
+    def _create_info(self):
+        for widget in self._widgets_frame.winfo_children():
+            widget.destroy()
+
+        self._profit_day_label = tkinter.Label(self._widgets_frame, anchor="w", text=f"Прибыль (сегодня): {self._gas_station.get_current_day_profit()}")
+        self._profit_7_days_label = tkinter.Label(self._widgets_frame, anchor="w", text=f"Прибыль (неделя): {self._gas_station.get_7_days_profit()}")
+        self._fails_day_label = tkinter.Label(self._widgets_frame, anchor="w", text=f"Количество уехавших (сегодня): {self._gas_station.get_current_day_fails()}")
+        self._fails_7_days_label = tkinter.Label(self._widgets_frame, anchor="w", text=f"Количество уехавших (неделя): {self._gas_station.get_7_days_fails()}")
+        self._goods_day_label = tkinter.Label(self._widgets_frame, anchor="w", text=f"Количество обслуженных (сегодня): {self._gas_station.get_current_day_goods()}")
+        self._goods_7_days_label = tkinter.Label(self._widgets_frame, anchor="w", text=f"Количество обслуженных (неделя): {self._gas_station.get_7_days_goods()}")
+
+        self._profit_day_label.pack(anchor="w")
+        self._profit_7_days_label.pack(anchor="w")
+        self._fails_day_label.pack(anchor="w")
+        self._fails_7_days_label.pack(anchor="w")
+        self._goods_day_label.pack(anchor="w")
+        self._goods_7_days_label.pack(anchor="w")
+
+    def _draw_gas_column(self, gas_column):
+        self._canvas.delete("all")
+        for i, gas_column in enumerate(gas_column):
+            self._canvas.create_rectangle(40 + (250 * i), 100, 100 + (250 * i), 300, fill="DodgerBlue3")
+
+            r = 24
+            self._canvas.create_oval(65 - r + (250 * i), 200 - r, 75 + r + (250 * i), 200 + r, fill="White")
+            self._canvas.create_text(70 + (250 * i), 200, text=gas_column.get_benzine_type().get_name())
+
+            self._draw_clients(gas_column.get_clients(), i)
+
+
+    def step(self):
+        self._gas_station.step(10)
+
+        gas_column = self._gas_station.get_gas_column()
+
+        self._draw_gas_column(gas_column)
+        self._update_info()
+
+        self.after(500, self.step)
